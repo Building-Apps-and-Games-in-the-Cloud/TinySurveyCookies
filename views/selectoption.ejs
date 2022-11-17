@@ -17,7 +17,7 @@
     <form action="/recordselection/<%=topic%>" method="POST">
       <% options.forEach(option=> { %>
         <p>
-          <input type="radio" name="selections" id="<%=option.text%>" value="<%=option.text%>">
+          <input type="radio" name="selections" required id="<%=option.text%>" value="<%=option.text%>">
           <label for="<%option.text%>">
             <%=option.text%>
           </label>

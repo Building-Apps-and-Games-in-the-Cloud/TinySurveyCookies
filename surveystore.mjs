@@ -1,19 +1,31 @@
 class Option {
+  /**
+   * 
+   * @param {Object} newValue contains a text string and a count number 
+   */
   constructor(newValue) {
     this.text = newValue.text;
     this.count = newValue.count;
   }
 
+  /**
+   * Increases the count value of this option by 1
+   */
   incrementCount() {
     this.count = this.count + 1;
   }
 
+  /**
+   * 
+   * @returns count value as a number
+   */
   getCount() {
     return this.count;
   }
 }
 
 class Survey {
+
   constructor(newValue) {
     this.topic = newValue.topic;
     this.options = [];
@@ -23,14 +35,27 @@ class Survey {
     });
   }
 
+  /**
+   * Increments the count for the specified option
+   * @param {string} text the text of the option to be incremented 
+   * @returns true if the increment succeeded
+   */
   incrementCount(text) {
     let option = this.options.find(
       item => item.text == text);
     if (option != undefined) {
       option.incrementCount();
+      return true;
+    }
+    else {
+      return false;
     }
   }
 
+  /**
+   * Gets the counts for the options in the survey
+   * @returns object containing a topic value and an array of option name and count values
+   */
   getCounts() {
     let options = [];
     this.options.forEach(option => {
@@ -41,6 +66,10 @@ class Survey {
     return result;
   }
 
+  /**
+   * 
+   * @returns object containing a topic value and an array of option names
+   */
   getOptions() {
     let options = [];
     this.options.forEach(option => {
@@ -57,10 +86,19 @@ class Surveys {
     this.surveys = [];
   }
 
+  /**
+   * 
+   * @param {Object} survey object containign a topic value and an array of option values 
+   */
   saveSurvey(survey) {
     this.surveys.push(survey);
   }
 
+  /**
+   *  
+   * @param {String} topic topic of the survey to search for 
+   * @returns 
+   */
   getSurveyByTopic(topic) {
     return this.surveys.find(element => element.topic == topic);
   }

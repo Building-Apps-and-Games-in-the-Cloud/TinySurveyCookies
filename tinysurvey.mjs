@@ -1,13 +1,12 @@
-import { Option, Survey, Surveys } from './surveystore.mjs';
+import { SurveyManager } from './surveymanager.mjs';
 import express from 'express';
 import cookieParser from 'cookie-parser';
-
 
 // Create the express application
 const app = express();
 
-// Create an empty survey store
-let surveys = new Surveys();
+// Create a survey manager
+let surveyManager = new SurveyManager();
 
 const port = 8080;
 
@@ -27,34 +26,49 @@ app.get('/index.html', (request, response) => {
 
 // Got the survey topic
 app.post('/gottopic', (request, response) => {
+
   let topic = request.body.topic;
 
-  let survey = surveys.getSurveyByTopic(topic);
-
-  if (survey == undefined) {
-    // need to make a new survey
-    response.render('enteroptions.ejs',
-      { topic: topic, numberOfOptions: 5 });
-  }
-  else {
+  if (surveyManager.surveyExists(topic)) {
     // Need to check if the survey has already been filled in
-
+    // by this user
     if (request.cookies.completedSurveys) {
       // Got a completed surveys cookie
+      // Parse it into a list of completed surveys
       let completedSurveys = JSON.parse(request.cookies.completedSurveys);
-
+      // Look for the current topic in the list
       if (completedSurveys.includes(topic)) {
-        // This survey has already been filled in at this browser
+        // This survey has already been filled in using this browser
         // Just display the results
-        let results = survey.getCounts();
+        let results = surveyManager.getCounts(topic);
         response.render('displayresults.ejs', results);
       }
     }
     else {
       // enter scores on an existing survey
-      let surveyOptions = survey.getOptions();
+      let surveyOptions = surveyManager.getOptions(topic);
       response.render('selectoption.ejs', surveyOptions);
     }
+  }
+  else {
+    // There is no existing survey - need to make a new one
+    // Might need to delete the topic from the completed surveys
+    if (request.cookies.completedSurveys) {
+      // Get the cookie value and parse it 
+      let completedSurveys = JSON.parse(request.cookies.completedSurveys);
+      // Check if the topic is in the completed ones
+      if (completedSurveys.includes(topic)) {
+        // Delete the topic from the completedSurveys array
+        let topicIndex = completedSurveys.indexOf(topic);
+        completedSurveys.splice(topicIndex, 1);
+        // Update the stored cookie
+        let completedSurveysJSON = JSON.stringify(completedSurveys);
+        response.cookie("completedSurveys", completedSurveysJSON);
+      }
+    }
+    // need to make a new survey
+    response.render('enteroptions.ejs',
+      { topic: topic, numberOfOptions: 5 });
   }
 });
 
@@ -72,53 +86,57 @@ app.post('/setoptions/:topic', (request, response) => {
     if (optionText == undefined) {
       break;
     }
-    // Make an option object 
-    let option = new Option({ text: optionText, count: 0 });
+    // Make an option value 
+    let optionValue = { text: optionText, count: 0 };
     // Store it in the array of options
-    options.push(option);
+    options.push(optionValue);
     // Move on to the next option
     optionNo++;
   } while (true);
 
   // Build a survey object
-  let survey = new Survey({ topic: topic, options: options });
+  let newSurvey = { topic: topic, options: options };
 
   // save it
-  surveys.saveSurvey(survey);
+  surveyManager.storeSurvey(newSurvey);
 
   // Render the survey page
-  let surveyOptions = survey.getOptions();
+  let surveyOptions = surveyManager.getOptions(topic);
   response.render('selectoption.ejs', surveyOptions);
 });
 
 // Got the selections for a survey
 app.post('/recordselection/:topic', (request, response) => {
   let topic = request.params.topic;
-  let survey = surveys.getSurveyByTopic(topic);
-  if (survey == undefined) {
+
+  if (!surveyManager.surveyExists(topic)) {
+    // This is an error - display survey not found
     response.status(404).send('<h1>Survey not found</h1>');
   }
   else {
-    let completedSurveysJSON = request.cookies.completedSurveys;
-    let completedSurveys;
-    if (completedSurveysJSON) {
-      // Got a completed surveys cookie string - parse it
-      completedSurveys = JSON.parse(completedSurveysJSON);
+    // Start with an empty completed survey list
+    let completedSurveys = [];
+    if (request.cookies.completedSurveys) {
+      // Got a completed surveys cookie
+      completedSurveys = JSON.parse(request.cookies.completedSurveys);
     }
-    else {
-      // no surveys yet
-      completedSurveys = [];
-    }
-
-    if (!completedSurveys.includes(topic)) {
+    // Look for the current topic in completedSurveys
+    if (completedSurveys.includes(topic) == false) {
       // This survey has not been filled in at this browser
+      // Get the text of the selected option
       let optionSelected = request.body.selections;
-      survey.incrementCount(optionSelected);
+      // Build an increment description
+      let incDetails = { topic: topic, option: optionSelected };
+      // Increment the count 
+      surveyManager.incrementCount(incDetails);
+      // Add the topic to the completed surveys
       completedSurveys.push(topic);
-      completedSurveysJSON = JSON.stringify(completedSurveys);
+      // Make a JSON string for storage
+      let completedSurveysJSON = JSON.stringify(completedSurveys);
+      // store the cookie
       response.cookie("completedSurveys", completedSurveysJSON);
     }
-    let results = survey.getCounts();
+    let results = surveyManager.getCounts(topic);
     response.render('displayresults.ejs', results);
   }
 });
@@ -126,13 +144,12 @@ app.post('/recordselection/:topic', (request, response) => {
 // Get the results for a survey
 app.get('/displayresults/:topic', (request, response) => {
   let topic = request.params.topic;
-  let survey = surveys.getSurveyByTopic(topic);
-  if (survey == undefined) {
-    response.status(404).send('<h1>Survey not found</h1>');
+  if (surveyManager.surveyExists(topic)) {
+    let results = surveyManager.getCounts(topic);
+    response.render('displayresults.ejs', results);
   }
   else {
-    let results = survey.getCounts();
-    response.render('displayresults.ejs', results);
+    response.status(404).send('<h1>Survey not found</h1>');
   }
 });
 
